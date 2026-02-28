@@ -53,11 +53,12 @@ const AdhesionScreen = ({ token, onBack, onJoinSuccess }) => {
     const [alertConfig, setAlertConfig] = useState({
         visible: false,
         title: '',
-        message: ''
+        message: '',
+        onCloseCallback: null
     });
 
-    const showAlert = (title, message) => {
-        setAlertConfig({ visible: true, title, message });
+    const showAlert = (title, message, onCloseCallback = null) => {
+        setAlertConfig({ visible: true, title, message, onCloseCallback });
     };
 
     const handleJoin = async () => {
@@ -90,11 +91,17 @@ const AdhesionScreen = ({ token, onBack, onJoinSuccess }) => {
             }
 
             if (response.ok) {
-                // Simula um loading maior para o usuário ver o "processando"
-                setTimeout(() => {
+                setIsLoading(false);
+                const backendMsg = data.message || (data.data && data.data.message) || '';
+
+                let displayMsg = 'Sua adesão foi enviada e está aguardando aprovação do Administrador.';
+                if (backendMsg.includes('Welcome back') || backendMsg.includes('reactivated')) {
+                    displayMsg = 'Bem-vindo de volta! Sua adesão foi reativada com sucesso.';
+                }
+
+                showAlert('Sucesso', displayMsg, () => {
                     onJoinSuccess();
-                    setIsLoading(false);
-                }, 1500);
+                });
             } else {
                 showAlert('Não foi possível realizar a adesão', data.message || 'Verifique os dados e tente novamente.');
                 setIsLoading(false);
@@ -112,7 +119,12 @@ const AdhesionScreen = ({ token, onBack, onJoinSuccess }) => {
                 visible={alertConfig.visible}
                 title={alertConfig.title}
                 message={alertConfig.message}
-                onClose={() => setAlertConfig({ ...alertConfig, visible: false })}
+                onClose={() => {
+                    setAlertConfig(prev => ({ ...prev, visible: false }));
+                    if (alertConfig.onCloseCallback) {
+                        alertConfig.onCloseCallback();
+                    }
+                }}
             />
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>

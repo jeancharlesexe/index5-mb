@@ -95,7 +95,7 @@ export default function App() {
         <AdhesionScreen
           token={userData.token}
           onBack={() => setCurrentScreen('LOGIN')}
-          onJoinSuccess={() => setCurrentScreen('PENDING_APPROVAL')}
+          onJoinSuccess={() => checkClientStatus({ data: { token: userData.token } })}
         />
         <StatusBar style="light" />
       </>
@@ -131,10 +131,13 @@ export default function App() {
       </>
     );
   }
-
   return (
     <>
-      <DashboardScreen token={userData.token} client={userData.client} />
+      <DashboardScreen
+        token={userData.token}
+        client={userData.client}
+        onLogout={() => setCurrentScreen('LOGIN')}
+      />
       <StatusBar style="light" />
     </>
   );
