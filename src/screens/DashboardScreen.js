@@ -226,7 +226,7 @@ const DashboardScreen = ({ token, client, onLogout }) => {
         );
     }
 
-    const summary = portfolio?.summary || { totalInvested: 0, currentPortfolioValue: 0, profitabilityPercentage: 0 };
+    const summary = portfolio?.summary || { totalInvested: 0, currentPortfolioValue: 0, profitabilityPercentage: 0, totalPL: 0 };
     const assets = portfolio?.assets || [];
 
     return (
@@ -258,13 +258,22 @@ const DashboardScreen = ({ token, client, onLogout }) => {
                     <Text style={styles.cardTitle}>Visão Geral do Plano</Text>
                     <Text style={styles.planName}>Investidor: {client.name}</Text>
 
-                    <View style={styles.valueContainer}>
+                    <View style={[styles.valueContainer, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                         <View>
-                            <Text style={styles.valueLabel}>Valor Acumulado</Text>
+                            <Text style={styles.valueLabel}>Valor Atual da Posição</Text>
                             <View style={styles.amountRow}>
                                 <Text style={styles.currency}>R$</Text>
                                 <Text style={styles.amount}>
                                     {summary.currentPortfolioValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={{ alignItems: 'flex-end', backgroundColor: '#F9FAFB', padding: 8, borderRadius: 8 }}>
+                            <Text style={styles.valueLabel}>Valor Investido: R$ {summary.totalInvested?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                                <Ionicons name={summary.totalPL >= 0 ? "trending-up" : "trending-down"} size={16} color={summary.totalPL >= 0 ? SUCCESS_GREEN : '#D32F2F'} />
+                                <Text style={{ fontSize: 12, fontWeight: 'bold', marginLeft: 4, color: summary.totalPL >= 0 ? SUCCESS_GREEN : '#D32F2F' }}>
+                                    {summary.totalPL >= 0 ? '+' : '-'} R$ {Math.abs(summary.totalPL || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({summary.profitabilityPercentage > 0 ? '+' : ''}{summary.profitabilityPercentage?.toFixed(2)}%)
                                 </Text>
                             </View>
                         </View>
@@ -318,8 +327,16 @@ const DashboardScreen = ({ token, client, onLogout }) => {
                                 <Text style={styles.assetTicker}>{item.ticker}</Text>
                             </View>
                             <View style={styles.assetMetricsDetail}>
-                                <Text style={styles.assetMetricText}>{item.quantity} cotas | PM R$ {item.averagePrice.toFixed(2)}</Text>
-                                <Text style={styles.assetValueFinal}>R$ {item.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+                                <View>
+                                    <Text style={styles.assetMetricText}>{item.quantity} cotas | PM R$ {item.averagePrice.toFixed(2)}</Text>
+                                    <Text style={styles.assetValueFinal}>R$ {item.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text style={{ fontSize: 11, color: TEXT_GREY }}>Lucro (P/L)</Text>
+                                    <Text style={{ fontSize: 13, fontWeight: 'bold', color: item.pl >= 0 ? SUCCESS_GREEN : '#D32F2F' }}>
+                                        {item.pl >= 0 ? '+' : '-'} R$ {Math.abs(item.pl || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({item.plPercentage > 0 ? '+' : ''}{item.plPercentage?.toFixed(2)}%)
+                                    </Text>
+                                </View>
                             </View>
                         </View>
                     )) : (
