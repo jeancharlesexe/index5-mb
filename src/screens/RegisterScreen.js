@@ -13,7 +13,7 @@ import {
     ActivityIndicator,
     Modal,
 } from 'react-native';
-import { MaterialCommunityIcons, Ionicons, FontAwesome } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { translateError } from '../utils/errorHelper';
 
 const ITAU_ORANGE = '#EC7000';
@@ -48,9 +48,12 @@ const CustomAlert = ({ visible, title, message, onClose }) => (
     </Modal>
 );
 
-const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
+const RegisterScreen = ({ onBack, onRegisterSuccess }) => {
+    const [name, setName] = useState('');
     const [cpf, setCpf] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [birthDate, setBirthDate] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -58,16 +61,51 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
     const [alertConfig, setAlertConfig] = useState({
         visible: false,
         title: '',
-        message: ''
+        message: '',
+        onCloseCallback: null
     });
 
-    const showAlert = (title, message) => {
-        setAlertConfig({ visible: true, title, message });
+    const showAlert = (title, message, callback = null) => {
+        setAlertConfig({ visible: true, title, message, onCloseCallback: callback });
     };
 
-    const handleLogin = async () => {
-        if (!cpf || !password) {
-            showAlert('Atenção', 'Por favor, preencha o CPF e a senha.');
+    const validateEmail = (email) => {
+        const re = /\S+@\S+\.\S+/;
+        return re.test(email);
+    };
+
+    const validateCpf = (cpf) => {
+        const cleanCpf = cpf.replace(/\D/g, '');
+        return cleanCpf.length === 11;
+    };
+
+    const handleRegister = async () => {
+        // Basic validations
+        if (!name || !cpf || !email || !password || !birthDate) {
+            showAlert('Atenção', 'Por favor, preencha todos os campos.');
+            return;
+        }
+
+        if (!validateCpf(cpf)) {
+            showAlert('CPF Inválido', 'O CPF deve conter 11 dígitos.');
+            return;
+        }
+
+        if (!validateEmail(email)) {
+            showAlert('E-mail Inválido', 'Por favor, insira um e-mail válido.');
+            return;
+        }
+
+        if (password.length < 6) {
+            showAlert('Senha Curta', 'A senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
+
+        // Simple BirthDate validation (expects YYYY-MM-DD for API, but let's assume user types DD/MM/YYYY)
+        // Here we just check if it's potentially valid.
+        const birthDateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+        if (!birthDateRegex.test(birthDate)) {
+            showAlert('Data Inválida', 'Use o formato DD/MM/AAAA.');
             return;
         }
 
@@ -75,19 +113,26 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
 
         const cleanCpf = cpf.replace(/\D/g, '');
 
+        // Convert DD/MM/YYYY to YYYY-MM-DD
+        const [day, month, year] = birthDate.split('/');
+        const formattedBirthDate = `${year}-${month}-${day}`;
+
         try {
-            const response = await fetch('http://localhost:5246/api/v1/auth/login/client', {
+            const response = await fetch('http://localhost:5246/api/v1/auth/register', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    name,
                     cpf: cleanCpf,
-                    password: password,
+                    email,
+                    password,
+                    birthDate: formattedBirthDate,
+                    role: 'CLIENT'
                 }),
             });
 
-            // Se o backend não retornar JSON ou der erro de rede
             let data;
             try {
                 data = await response.json();
@@ -95,17 +140,19 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
                 data = { message: 'Erro ao processar resposta do servidor.' };
             }
 
-            if (response.ok) {
-                onLoginSuccess(data);
+            if (response.ok || response.status === 201) {
+                showAlert('Sucesso', 'Conta criada com sucesso! Agora você pode entrar.', () => {
+                    onRegisterSuccess();
+                });
             } else {
                 const errorCode = data?.data?.code || data?.message;
                 showAlert(
-                    'Falha no Login',
-                    translateError(errorCode, data.message || 'CPF ou senha incorretos.')
+                    'Falha no Cadastro',
+                    translateError(errorCode, data.message || 'Não foi possível criar sua conta.')
                 );
             }
         } catch (error) {
-            console.error('Login Error:', error);
+            console.error('Register Error:', error);
             showAlert(
                 'Erro de Conexão',
                 translateError('NETWORK_ERROR')
@@ -121,7 +168,10 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
                 visible={alertConfig.visible}
                 title={alertConfig.title}
                 message={alertConfig.message}
-                onClose={() => setAlertConfig({ ...alertConfig, visible: false })}
+                onClose={() => {
+                    setAlertConfig({ ...alertConfig, visible: false });
+                    if (alertConfig.onCloseCallback) alertConfig.onCloseCallback();
+                }}
             />
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -130,7 +180,10 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
                 <ScrollView contentContainerStyle={styles.scrollContent}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <View style={styles.headerContent}>
+                        <TouchableOpacity onPress={onBack} style={styles.backArrow}>
+                            <Ionicons name="arrow-back" size={24} color="#fff" />
+                        </TouchableOpacity>
+                        <View style={styles.logoContainer}>
                             <View style={styles.logoBadge}>
                                 <Image
                                     source={require('../../assets/icons/logo-itau.png')}
@@ -138,27 +191,37 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
                                     resizeMode="contain"
                                 />
                             </View>
-                            <View style={styles.headerTextContainer}>
-                                <Text style={styles.headerTitle}>Itaú Corretora</Text>
-                                <Text style={styles.headerSubtitle}>Top Five</Text>
-                            </View>
+                            <Text style={styles.headerTitle}>Criar Conta</Text>
                         </View>
                     </View>
 
-                    {/* Form Container */}
+                    {/* Form */}
                     <View style={styles.formContainer}>
-                        <Text style={styles.welcomeText}>Acesse sua Conta</Text>
+                        <Text style={styles.subtext}>Preencha seus dados para começar a investir com a Itaú Corretora.</Text>
 
-                        {/* CPF Input */}
+                        {/* Name Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>CPF</Text>
-                            <Text style={styles.subLabel}>Cadastro de Pessoa Física</Text>
+                            <Text style={styles.label}>Nome Completo</Text>
                             <View style={styles.inputWrapper}>
                                 <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
+                                    placeholder="Ex: João Silva"
+                                    value={name}
+                                    onChangeText={setName}
+                                    editable={!isLoading}
+                                />
+                            </View>
+                        </View>
+
+                        {/* CPF Input */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>CPF</Text>
+                            <View style={styles.inputWrapper}>
+                                <Ionicons name="card-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
                                     placeholder="000.000.000-00"
-                                    placeholderTextColor="#999"
                                     keyboardType="numeric"
                                     value={cpf}
                                     onChangeText={(text) => {
@@ -178,6 +241,49 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
                             </View>
                         </View>
 
+                        {/* Email Input */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>E-mail</Text>
+                            <View style={styles.inputWrapper}>
+                                <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="seu@email.com"
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    editable={!isLoading}
+                                />
+                            </View>
+                        </View>
+
+                        {/* BirthDate Input */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Data de Nascimento</Text>
+                            <View style={styles.inputWrapper}>
+                                <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="DD/MM/AAAA"
+                                    keyboardType="numeric"
+                                    value={birthDate}
+                                    onChangeText={(text) => {
+                                        // Simple auto-slash
+                                        let v = text.replace(/\D/g, '');
+                                        if (v.length > 8) v = v.substring(0, 8);
+                                        if (v.length >= 5) {
+                                            v = v.substring(0, 2) + '/' + v.substring(2, 4) + '/' + v.substring(4);
+                                        } else if (v.length >= 3) {
+                                            v = v.substring(0, 2) + '/' + v.substring(2);
+                                        }
+                                        setBirthDate(v);
+                                    }}
+                                    editable={!isLoading}
+                                />
+                            </View>
+                        </View>
+
                         {/* Password Input */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Senha</Text>
@@ -185,8 +291,7 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
                                 <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="........"
-                                    placeholderTextColor="#999"
+                                    placeholder="Mínimo 6 caracteres"
                                     secureTextEntry={!showPassword}
                                     value={password}
                                     onChangeText={setPassword}
@@ -202,44 +307,21 @@ const LoginScreen = ({ onLoginSuccess, onGoToRegister }) => {
                             </View>
                         </View>
 
-                        <TouchableOpacity style={styles.forgotPassword}>
-                            <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
-                        </TouchableOpacity>
-
-                        {/* Login Button */}
+                        {/* Register Button */}
                         <TouchableOpacity
-                            style={[styles.loginButton, isLoading && { opacity: 0.7 }]}
-                            onPress={handleLogin}
+                            style={[styles.registerButton, isLoading && { opacity: 0.7 }]}
+                            onPress={handleRegister}
                             disabled={isLoading}
                         >
                             {isLoading ? (
                                 <ActivityIndicator color="#fff" />
                             ) : (
-                                <Text style={styles.loginButtonText}>ENTRAR</Text>
+                                <Text style={styles.registerButtonText}>CADASTRAR</Text>
                             )}
                         </TouchableOpacity>
 
-                        {/* Biometry Button */}
-                        <TouchableOpacity style={styles.biometryButton}>
-                            <View style={styles.biometryLeft}>
-                                <MaterialCommunityIcons name="fingerprint" size={36} color="#fff" />
-                                <View style={styles.biometryTextRow}>
-                                    <Text style={styles.biometryText}>Acessar com</Text>
-                                    <Text style={[styles.biometryText, { fontWeight: 'bold' }]}>Biometria</Text>
-                                </View>
-                            </View>
-                            <View style={styles.habilitarBadge}>
-                                <Text style={styles.habilitarText}>Habilitar</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Footer */}
-                    <View style={styles.footer}>
-                        <TouchableOpacity onPress={onGoToRegister}>
-                            <Text style={styles.footerText}>
-                                Não tem conta? <Text style={styles.linkText}>Cadastrar</Text>
-                            </Text>
+                        <TouchableOpacity style={styles.cancelButton} onPress={onBack}>
+                            <Text style={styles.cancelButtonText}>Já tenho uma conta. Entrar</Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -258,13 +340,16 @@ const styles = StyleSheet.create({
     },
     header: {
         backgroundColor: ITAU_BLUE,
-        paddingTop: 20,
-        paddingBottom: 25,
+        paddingTop: 40,
+        paddingBottom: 30,
         paddingHorizontal: 20,
-        borderBottomLeftRadius: 15,
-        borderBottomRightRadius: 15,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
     },
-    headerContent: {
+    backArrow: {
+        marginBottom: 20,
+    },
+    logoContainer: {
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -275,48 +360,34 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: 15,
     },
     headerLogo: {
         width: '80%',
         height: '80%',
     },
-    headerTextContainer: {
-        justifyContent: 'center',
-    },
     headerTitle: {
         color: '#fff',
-        fontSize: 18,
+        fontSize: 24,
         fontWeight: 'bold',
-    },
-    headerSubtitle: {
-        color: '#fff',
-        fontSize: 12,
-        opacity: 0.8,
     },
     formContainer: {
-        flex: 1,
-        paddingHorizontal: 20,
-        paddingTop: 30,
+        padding: 20,
+        paddingTop: 25,
     },
-    welcomeText: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#333',
+    subtext: {
+        fontSize: 16,
+        color: '#666',
         marginBottom: 25,
+        lineHeight: 22,
     },
     inputGroup: {
         marginBottom: 20,
     },
     label: {
-        fontSize: 16,
+        fontSize: 14,
         color: '#333',
-        fontWeight: '600',
-        marginBottom: 2,
-    },
-    subLabel: {
-        fontSize: 12,
-        color: '#666',
+        fontWeight: 'bold',
         marginBottom: 8,
     },
     inputWrapper: {
@@ -325,88 +396,46 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderWidth: 1,
         borderColor: '#DDD',
-        borderRadius: 8,
-        paddingHorizontal: 12,
+        borderRadius: 10,
+        paddingHorizontal: 15,
         height: 55,
     },
     inputIcon: {
-        marginRight: 10,
+        marginRight: 12,
     },
     input: {
         flex: 1,
         fontSize: 16,
         color: '#333',
     },
-    forgotPassword: {
-        alignSelf: 'flex-end',
-        marginBottom: 30,
-    },
-    forgotPasswordText: {
-        color: ITAU_BLUE,
-        fontSize: 14,
-        textDecorationLine: 'underline',
-    },
-    loginButton: {
+    registerButton: {
         backgroundColor: ITAU_ORANGE,
         height: 55,
-        borderRadius: 8,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 20,
+        marginTop: 20,
+        marginBottom: 15,
         elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 3,
     },
-    loginButtonText: {
+    registerButtonText: {
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
         letterSpacing: 1,
     },
-    biometryButton: {
-        backgroundColor: ITAU_BLUE,
-        height: 80,
-        borderRadius: 8,
-        flexDirection: 'row',
+    cancelButton: {
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
+        paddingVertical: 10,
     },
-    biometryLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    biometryTextRow: {
-        marginLeft: 15,
-    },
-    biometryText: {
-        color: '#fff',
-        fontSize: 16,
-    },
-    habilitarBadge: {
-        backgroundColor: '#fff',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 4,
-    },
-    habilitarText: {
-        color: ITAU_BLUE,
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    footer: {
-        paddingVertical: 30,
-        alignItems: 'center',
-    },
-    footerText: {
-        fontSize: 16,
-        color: '#666',
-    },
-    linkText: {
+    cancelButtonText: {
         color: ITAU_BLUE,
         fontWeight: 'bold',
+        fontSize: 15,
     },
     // Modal Styles
     modalOverlay: {
@@ -422,7 +451,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderRadius: 20,
         overflow: 'hidden',
-        elevation: 20,
     },
     modalHeader: {
         height: 100,
@@ -459,4 +487,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default LoginScreen;
+export default RegisterScreen;

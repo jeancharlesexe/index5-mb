@@ -8,6 +8,7 @@ import AdhesionScreen from './src/screens/AdhesionScreen';
 import PendingApprovalScreen from './src/screens/PendingApprovalScreen';
 import AccountExitedScreen from './src/screens/AccountExitedScreen';
 import SupportScreen from './src/screens/SupportScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('SPLASH');
@@ -83,7 +84,22 @@ export default function App() {
   if (currentScreen === 'LOGIN') {
     return (
       <>
-        <LoginScreen onLoginSuccess={(data) => checkClientStatus(data)} />
+        <LoginScreen
+          onLoginSuccess={(data) => checkClientStatus(data)}
+          onGoToRegister={() => setCurrentScreen('REGISTER')}
+        />
+        <StatusBar style="light" />
+      </>
+    );
+  }
+
+  if (currentScreen === 'REGISTER') {
+    return (
+      <>
+        <RegisterScreen
+          onBack={() => setCurrentScreen('LOGIN')}
+          onRegisterSuccess={() => setCurrentScreen('LOGIN')}
+        />
         <StatusBar style="light" />
       </>
     );
